@@ -34,6 +34,17 @@ Valid up to 278000 ft (86km).
 
 double calc_geopotential_alt (uint32_t P_alt, double T_alt) {
 	double geopotential_alt;
+
+	for(int possible_layer = 6; possible_layer > 0; possible_layer--){
+		if ((double) P_alt < atmospheric_layers[possible_layer].P_b){
+			b = possible_layer;
+			T_b = atmospheric_layers[b].T_b;
+			Alt_b = atmospheric_layers[b].Alt_b;
+			P_b = atmospheric_layers[b].P_b;
+			break;
+		}
+	}
+
 #ifdef DEBUG
 
 	printf("calc_geopotential_alt called with the following values.\n\
@@ -47,15 +58,6 @@ L_b = %lf\n",
 T_alt, P_alt, (int) b, T_b, P_b, Alt_b, L_b);
 
 #endif
-	for(int possible_layer = 6; possible_layer > 0; possible_layer--){
-		if ((double) P_alt < atmospheric_layers[possible_layer].P_b){
-			b = possible_layer;
-			T_b = atmospheric_layers[b].T_b;
-			Alt_b = atmospheric_layers[b].Alt_b;
-			P_b = atmospheric_layers[b].P_b;
-			break;
-		}
-	}
 
 	if(/* if lapse rate is 0 */ !L_b == 0.0){
 		geopotential_alt = log(P_b/P_alt) * R * T_b / M / G + Alt_b; 
