@@ -10,10 +10,17 @@
   Connect SDA to analog 4
   Connect VDD to 3.3-5V DC
   Connect GROUND to common ground
+
+
+  Connect SCK to Pin 13
+  Connect MISO to Pin 12
+  Connect MOSI to Pin 11
+  Connect SS to Pin 4
    
  */
 #include <calculate_altitude.h>
 #include <Wire.h>
+#include <SD.h>
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BNO055.h>
 #include <MS5xxx.h>
@@ -21,12 +28,23 @@
 
 /* Set the delay between fresh samples */
 #define SAMPLERATE_DELAY_MS (1000)
+#define TELEMETRY_DELAY_MS (5000)
 
 // Check I2C device address and correct line below (by default address is 0x29 or 0x28)
 //                                   id, address
 Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
 
 MS5xxx sensor(&Wire);
+Sd2Card card;
+SdVolume volume;
+SdFile root;
+// change this to match your SD shield or module;
+// Arduino Ethernet shield: pin 4
+// Adafruit SD shields and modules: pin 10
+// Sparkfun SD shield: pin 8
+const int chipSelect = 4;
+File log_for_ms5607;
+File log_for_bno055;
 
 void initialize_bno055(void) {
   /* Initialise the sensor */
@@ -50,59 +68,126 @@ void initialize_ms5607(void) {
   }
 }
 
-void readFrom_bno055(void) {
+void readFrom_bno055(int is_telemtry) {
   sensors_event_t event;
   bno.getEvent(&event);
-  /* The processing sketch expects data as roll, pitch, heading */
-  Serial.print(F("Orientation: "));
-  Serial.print((float)event.orientation.x);
-  Serial.print(F(" "));
-  Serial.print((float)event.orientation.y);
-  Serial.print(F(" "));
-  Serial.print((float)event.orientation.z);
-  Serial.println(F(""));
+  if (is_telemtry){
+    /* TODO */
+    Serial.println("Telemtry for BNO055");
+  } else {
+    /* TODO: Check with Payloads team how they want their telemetry log formatted */
+    log_for_bno055 = SD.open("bno055.txt", FILE_WRITE);
+    if (log_for_bno055) {
+      log_for_bno055.print("Time: ");
+      log_for_bno055.println(millis());
+      log_for_bno055.print(F("Orientation: "));
+      log_for_bno055.print((float)event.orientation.x);
+      log_for_bno055.print(F(" "));
+      log_for_bno055.print((float)event.orientation.y);
+      log_for_bno055.print(F(" "));
+      log_for_bno055.print((float)event.orientation.z);
+      log_for_bno055.println(F(""));    
+  
+  
+      // Also send calibrationdata for each sensor.
+      uint8_t sys, gyro, accel, mag = 0;
+      bno.getCalibration(&sys, &gyro, &accel, &mag);
+    
+      log_for_bno055.print(F("Calibration: "));
+      log_for_bno055.print(sys, DEC);
+      log_for_bno055.print(F(" "));
+      log_for_bno055.print(gyro, DEC);
+      log_for_bno055.print(F(" "));
+      log_for_bno055.print(accel, DEC);
+      log_for_bno055.print(F(" "));
+      log_for_bno055.println(mag, DEC);
+      log_for_bno055.println("---");
+      log_for_bno055.close();  
+    } else {
+      // if the file didn't open, print an error:
+      Serial.println("error bno055.txt");
+    }
+    /* The processing sketch expects data as roll, pitch, heading */
 
-  /* Also send calibration data for each sensor. */
-  uint8_t sys, gyro, accel, mag = 0;
-  bno.getCalibration(&sys, &gyro, &accel, &mag);
-  Serial.print(F("Calibration: "));
-  Serial.print(sys, DEC);
-  Serial.print(F(" "));
-  Serial.print(gyro, DEC);
-  Serial.print(F(" "));
-  Serial.print(accel, DEC);
-  Serial.print(F(" "));
-  Serial.println(mag, DEC);
-  Serial.println("---");
+  }
 }
 
-void readFrom_ms5607(void) {
+void readFrom_ms5607(int is_telemtry) {
   sensor.ReadProm();
   sensor.Readout();
-  Serial.print("Temperature [0.01 C]: ");
-  Serial.println(sensor.GetTemp());
-  Serial.print("Pressure [Pa]: ");
-  Serial.println(sensor.GetPres());
-  /* I can choose to test the CRC */
-  Serial.print("Altitude (cal.) in meters: ");
-  Serial.println(calc_geopotential_alt((uint32_t) sensor.GetPres(), sensor.GetTemp()));
-  Serial.println("---");
+  if(is_telemtry){
+    Serial.println("Telemetry for MS5607");
+  } else {
+    log_for_ms5607 = SD.open("ms5607.txt", FILE_WRITE);
+    if (log_for_ms5607){
+      // TODO: Check with Payloads team how they want their telemetry log formatted
+      log_for_ms5607.print("Time: ");
+      log_for_ms5607.println(millis());
+      log_for_ms5607.print("Temperature [0.01 C]: ");
+      log_for_ms5607.println(sensor.GetTemp());
+      log_for_ms5607.print("Pressure [Pa]: ");
+      log_for_ms5607.println(sensor.GetPres());
+      // I can choose to test the CRC
+      log_for_ms5607.print("Altitude (cal.) in meters: ");
+      log_for_ms5607.println(calc_geopotential_alt((uint32_t) sensor.GetPres(), sensor.GetTemp()));
+      log_for_ms5607.println("---");
+      log_for_ms5607.close();
+    } else {
+      // if the file didn't open, print an error:
+      Serial.println("error ms5607.txt");
+    }
+  }
 }
 
 void setup() {
   // put your setup code here, to run once:
   Serial.begin(115200);
   Serial.println("Beginning setup");
+  if (!SD.begin(4)) {
+    Serial.println("initialization of SD card failed!");
+    while (1);
+  }
+  if (SD.exists("ms5607.txt")){
+    SD.remove("ms5607.txt");
+  }
+  if (SD.exists("bno055.txt")){
+    SD.remove("bno055.txt");
+  }
   initialize_bno055();
   initialize_ms5607();
 
 }
 
+unsigned long lastReadTime_ms5607;
+unsigned long lastTelemtryTime_ms5607;
+unsigned long lastReadTime_bno055;
+unsigned long lastTelemtryTime_bno055;
+
 void loop() {
-  // put your main code here, to run repeatedly:
-  readFrom_ms5607();
-  delay(SAMPLERATE_DELAY_MS);
-  readFrom_bno055();
-  delay(SAMPLERATE_DELAY_MS);
+  // put your main code here, to run repeatedly: 
+  if((unsigned long)(millis() - lastReadTime_ms5607) > SAMPLERATE_DELAY_MS){
+    Serial.print("lastReadTime_ms5607: ");
+    Serial.println(lastReadTime_ms5607);
+    readFrom_ms5607(0);
+    lastReadTime_ms5607 = millis();
+  }
+  if((unsigned long)(millis() - lastReadTime_bno055) > SAMPLERATE_DELAY_MS){
+    Serial.print("lastReadTime_bno055: ");
+    Serial.println(lastReadTime_bno055);
+    readFrom_bno055(0);
+    lastReadTime_bno055 = millis();
+  }
+  if((unsigned long)(millis() - lastTelemtryTime_ms5607) > TELEMETRY_DELAY_MS){
+    Serial.print("lastReadTime_ms5607: ");
+    Serial.println(lastReadTime_ms5607);
+    readFrom_ms5607(1);
+    lastTelemtryTime_ms5607 = millis();
+  }
+  if((unsigned long)(millis() - lastTelemtryTime_bno055) > TELEMETRY_DELAY_MS){
+    Serial.print("lastTelemtryTime_bno055: ");
+    Serial.println(lastTelemtryTime_bno055);
+    readFrom_bno055(1);
+    lastTelemtryTime_bno055 = millis();
+  }
 
 }
