@@ -1,193 +1,151 @@
-
-
-/*    
-  Code for NTU SEDS Project New Dawn High Altitude Balloon
-  Created by the NTU SEDS Avionics Team
+/* Proj New Dawn copyright (C) 2020 Tan WJ Solomon
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * as published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
   
-  Connections
-  ===========
+  Connections for MS5607 and BNO055 
+  ==================================
   Connect SCL to analog 5
   Connect SDA to analog 4
   Connect VDD to 3.3-5V DC
   Connect GROUND to common ground
 
-
+  Connections for SD card reader
+  ===============================
   Connect SCK to Pin 13
   Connect MISO to Pin 12
   Connect MOSI to Pin 11
   Connect SS to Pin 4
    
  */
-#include <calculate_altitude.h>
-#include <Wire.h>
-#include <SD.h>
-#include <Adafruit_Sensor.h>
-#include <Adafruit_BNO055.h>
-#include <MS5xxx.h>
+
+#include "sensors_proj_new_dawn.h"
 #include <stdint.h>
+#include "config.h"
+#include "aprs.h"
+#include <SPI.h>
+#include <SD.h>
+#include <EEPROM.h>
 
 /* Set the delay between fresh samples */
 #define SAMPLERATE_DELAY_MS (1000)
 #define TELEMETRY_DELAY_MS (5000)
 
-// Check I2C device address and correct line below (by default address is 0x29 or 0x28)
-//                                   id, address
-Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28);
+unsigned long lastLogTime;
+unsigned long lastTelemtryTime;
+char str_for_log_and_telemetry[100];
 
-MS5xxx sensor(&Wire);
-Sd2Card card;
-SdVolume volume;
-SdFile root;
-// change this to match your SD shield or module;
-// Arduino Ethernet shield: pin 4
-// Adafruit SD shields and modules: pin 10
-// Sparkfun SD shield: pin 8
-const int chipSelect = 4;
-File log_for_ms5607;
-File log_for_bno055;
+struct bno055_data bno055_data_struct;
+struct ms5607_data ms5607_data_struct;
+// TODO: Include a data structure for GPS time and coordinates
 
-void initialize_bno055(void) {
-  /* Initialise the sensor */
-  if(!bno.begin())
-  {
-    /* There was a problem detecting the BNO055 ... check your connections */
-    Serial.print("Ooops, no BNO055 detected ... Check your wiring or I2C ADDR!");
-    while(1);
-  }
-  delay(1000);
-
-  /* Use external crystal for better accuracy */
-  bno.setExtCrystalUse(true);
-  Serial.print("BNO Initialized.");
-}
-
-void initialize_ms5607(void) {
-  if(sensor.connect() > 0) {
-    Serial.println("Error connecting to the MS5607 board!");
-    while(1);
-  }
-}
-
-void readFrom_bno055(int is_telemtry) {
-  sensors_event_t event;
-  bno.getEvent(&event);
-  if (is_telemtry){
-    /* TODO */
-    Serial.println("Telemtry for BNO055");
-  } else {
-    /* TODO: Check with Payloads team how they want their telemetry log formatted */
-    log_for_bno055 = SD.open("bno055.txt", FILE_WRITE);
-    if (log_for_bno055) {
-      log_for_bno055.print("Time: ");
-      log_for_bno055.println(millis());
-      log_for_bno055.print(F("Orientation: "));
-      log_for_bno055.print((float)event.orientation.x);
-      log_for_bno055.print(F(" "));
-      log_for_bno055.print((float)event.orientation.y);
-      log_for_bno055.print(F(" "));
-      log_for_bno055.print((float)event.orientation.z);
-      log_for_bno055.println(F(""));    
-  
-  
-      // Also send calibrationdata for each sensor.
-      uint8_t sys, gyro, accel, mag = 0;
-      bno.getCalibration(&sys, &gyro, &accel, &mag);
-    
-      log_for_bno055.print(F("Calibration: "));
-      log_for_bno055.print(sys, DEC);
-      log_for_bno055.print(F(" "));
-      log_for_bno055.print(gyro, DEC);
-      log_for_bno055.print(F(" "));
-      log_for_bno055.print(accel, DEC);
-      log_for_bno055.print(F(" "));
-      log_for_bno055.println(mag, DEC);
-      log_for_bno055.println("---");
-      log_for_bno055.close();  
-    } else {
-      // if the file didn't open, print an error:
-      Serial.println("error bno055.txt");
+// TODO: Any error checking needed?
+extern int write_to_file(const char *filename_to_write_to, const char *str_to_write){
+    File file_to_write_to = SD.open(filename_to_write_to);
+    if (!file_to_write_to){
+#ifdef DEBUG_MAIN
+      Serial.print("Failed to open file: ");
+      Serial.println(filename_to_write_to);
+#endif
+      return -1;
     }
-    /* The processing sketch expects data as roll, pitch, heading */
-
-  }
+    file_to_write_to.print(str_to_write);
+    file_to_write_to.close();
+    return 0;
 }
 
-void readFrom_ms5607(int is_telemtry) {
-  sensor.ReadProm();
-  sensor.Readout();
-  if(is_telemtry){
-    Serial.println("Telemetry for MS5607");
-  } else {
-    log_for_ms5607 = SD.open("ms5607.txt", FILE_WRITE);
-    if (log_for_ms5607){
-      // TODO: Check with Payloads team how they want their telemetry log formatted
-      log_for_ms5607.print("Time: ");
-      log_for_ms5607.println(millis());
-      log_for_ms5607.print("Temperature [0.01 C]: ");
-      log_for_ms5607.println(sensor.GetTemp());
-      log_for_ms5607.print("Pressure [Pa]: ");
-      log_for_ms5607.println(sensor.GetPres());
-      // I can choose to test the CRC
-      log_for_ms5607.print("Altitude (cal.) in meters: ");
-      log_for_ms5607.println(calc_geopotential_alt((uint32_t) sensor.GetPres(), sensor.GetTemp()));
-      log_for_ms5607.println("---");
-      log_for_ms5607.close();
-    } else {
-      // if the file didn't open, print an error:
-      Serial.println("error ms5607.txt");
-    }
+extern int initialize_sdcard(void){
+  if (!SD.begin(2)) {
+#ifdef DEBUG_MAIN
+    Serial.println("initialization of SD card failed!");
+#endif
+    return -1;
   }
+  // Store the number of computer resets on the EEPROM
+  write_to_file("log_file.txt","orien_x,orien_y,orien_z,T_int,T_ext,Pa,alt");
+  return 0;
 }
 
 void setup() {
   // put your setup code here, to run once:
-  Serial.begin(115200);
-  Serial.println("Beginning setup");
-  if (!SD.begin(4)) {
-    Serial.println("initialization of SD card failed!");
-    while (1);
-  }
-  if (SD.exists("ms5607.txt")){
-    SD.remove("ms5607.txt");
-  }
-  if (SD.exists("bno055.txt")){
-    SD.remove("bno055.txt");
-  }
-  initialize_bno055();
-  initialize_ms5607();
+  Serial.begin(GPS_BAUDRATE);
+#ifdef DEBUG_MAIN
+  Serial.println("Beginning setup. ");
+#endif
+  while(initialize_sdcard() == -1){
+    // Problem with initializing SD card
 
+  }
+#ifdef DEBUG_MAIN
+  Serial.println("Finished setting up SD card.");
+#endif
+  while(initialize_bno055() == -1){
+    // Problem with initializing BNO055
+
+  }
+#ifdef DEBUG_MAIN
+  Serial.println("Finished setting up BNO055 card.");
+#endif
+  while(initialize_ms5607() == -1){
+    // Problem with initializing MS5607
+
+  }
+#ifdef DEBUG_MAIN
+  Serial.println("Setup completed. ");
+#endif
 }
-
-unsigned long lastReadTime_ms5607;
-unsigned long lastTelemtryTime_ms5607;
-unsigned long lastReadTime_bno055;
-unsigned long lastTelemtryTime_bno055;
 
 void loop() {
   // put your main code here, to run repeatedly: 
-  if((unsigned long)(millis() - lastReadTime_ms5607) > SAMPLERATE_DELAY_MS){
-    Serial.print("lastReadTime_ms5607: ");
-    Serial.println(lastReadTime_ms5607);
-    readFrom_ms5607(0);
-    lastReadTime_ms5607 = millis();
+  if((unsigned long)(millis() - lastLogTime) > SAMPLERATE_DELAY_MS){
+#ifdef DEBUG_MAIN
+    Serial.println("Logging data.");
+#endif
+    readFrom_ms5607(&ms5607_data_struct);
+    readFrom_bno055(&bno055_data_struct);
+    // TODO: Get GPS time and coordinates from the LoPy
+    // TODO: Process data into a string
+    sprintf(str_for_log_and_telemetry, "%f,%f,%f,%d,%f,%f,%f", 
+      bno055_data_struct.orientation_x,
+      bno055_data_struct.orientation_y,
+      bno055_data_struct.orientation_z,
+      bno055_data_struct.internal_temp,
+      ms5607_data_struct.temperature,
+      ms5607_data_struct.pressure,
+      ms5607_data_struct.altitude
+    );
+#ifdef DEBUG_MAIN
+    Serial.println(str_for_log_and_telemetry);
+#endif
+    write_to_file("log_file.txt", str_for_log_and_telemetry);
+    lastLogTime = millis();
   }
-  if((unsigned long)(millis() - lastReadTime_bno055) > SAMPLERATE_DELAY_MS){
-    Serial.print("lastReadTime_bno055: ");
-    Serial.println(lastReadTime_bno055);
-    readFrom_bno055(0);
-    lastReadTime_bno055 = millis();
-  }
-  if((unsigned long)(millis() - lastTelemtryTime_ms5607) > TELEMETRY_DELAY_MS){
-    Serial.print("lastReadTime_ms5607: ");
-    Serial.println(lastReadTime_ms5607);
-    readFrom_ms5607(1);
-    lastTelemtryTime_ms5607 = millis();
-  }
-  if((unsigned long)(millis() - lastTelemtryTime_bno055) > TELEMETRY_DELAY_MS){
-    Serial.print("lastTelemtryTime_bno055: ");
-    Serial.println(lastTelemtryTime_bno055);
-    readFrom_bno055(1);
-    lastTelemtryTime_bno055 = millis();
+  if((unsigned long)(millis() - lastTelemtryTime) > TELEMETRY_DELAY_MS){
+#ifdef DEBUG_MAIN
+    Serial.println("Downlinking data through APRS. ");
+#endif
+    /*  TODO
+     *  Step 1: Get GPS and time data from the LoPy
+     *  Step 2: Read the sensors and populate the APRS fields
+     *  Step 3: Send out the APRS packet
+     */
+    readFrom_ms5607(&ms5607_data_struct);
+    readFrom_bno055(&bno055_data_struct);
+    // TODO: Get GPS time and coordinates from the LoPy
+    // TODO: Process data into APRS packet
+    //aprs_send();
+    lastTelemtryTime = millis();
   }
 
 }

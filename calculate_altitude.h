@@ -27,7 +27,7 @@ struct atmospheric_layer {
 	double L_b; /* Temperature lapse rate in the atmospheric layer (K m-1) */
 };
 
-double calc_geopotential_alt(uint32_t, double);
+double calc_geopotential_alt(uint32_t);
 double calc_geometric_alt(double);
 
 #endif

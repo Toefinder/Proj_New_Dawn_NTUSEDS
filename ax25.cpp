@@ -18,7 +18,6 @@
 #include "ax25.h"
 #include "config.h"
 #include "afsk_avr.h"
-#include "afsk_pic32.h"
 #include <stdint.h>
 #if (ARDUINO + 1) >= 100
 #  include <Arduino.h>
@@ -194,5 +193,3 @@ ax25_flush_frame()
   afsk_send(packet, packet_size);
   afsk_start();
 }
-
-

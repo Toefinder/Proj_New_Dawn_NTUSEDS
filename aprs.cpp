@@ -19,8 +19,6 @@
 #include "ax25.h"
 #include "gps.h"
 #include "aprs.h"
-#include "sensors_avr.h"
-#include "sensors_pic32.h"
 #include <stdio.h>
 #include <stdlib.h>
 #if (ARDUINO + 1) >= 100
@@ -53,6 +51,7 @@ void aprs_send()
 
   ax25_send_header(addresses, sizeof(addresses)/sizeof(s_address));
   ax25_send_byte('/');                // Report w/ timestamp, no APRS messaging. $ = NMEA raw data
+/*
   // ax25_send_string("021709z");     // 021709z = 2nd day of the month, 17:09 zulu (UTC/GMT)
   ax25_send_string(gps_time);         // 170915 = 17h:09m:15s zulu (not allowed in Status Reports)
   ax25_send_byte('h');
@@ -77,6 +76,7 @@ void aprs_send()
   ax25_send_string("/V=");
   snprintf(temp, 6, "%d", sensors_vin());
   ax25_send_string(temp);
+*/
   ax25_send_byte(' ');
   ax25_send_string(APRS_COMMENT);     // Comment
   ax25_send_footer();

@@ -111,53 +111,11 @@
 // --------------------------------------------------------------------------
 
 // This is the PTT pin
-#define PTT_PIN           4
-
-// --------------------------------------------------------------------------
-// Sensors config (sensors.cpp)
-// --------------------------------------------------------------------------
-
-// Most of the sensors.cpp functions use internal reference voltages (either
-// AVCC or 1.1V). If you want to use an external reference, you should
-// uncomment the following line:
-//
-// #define USE_AREF
-//
-// BEWARE! If you hook up an external voltage to the AREF pin and 
-// accidentally set the ADC to any of the internal references, YOU WILL
-// FRY YOUR AVR.
-//
-// It is always advised to connect the AREF pin through a pull-up resistor,
-// whose value is defined here in ohms (set to 0 if no pull-up):
-//
-#define AREF_PULLUP           4700
-//
-// Since there is already a 32K resistor at the ADC pin, the actual
-// voltage read will be VREF * 32 / (32 + AREF_PULLUP)
-//
-// Read more in the Arduino reference docs:
-// http://arduino.cc/en/Reference/AnalogReference?from=Reference.AREF
-
-// Pin mappings for the internal / external temperature sensors. VS refers
-// to (arduino) digital pins, whereas VOUT refers to (arduino) analog pins.
-#define INTERNAL_LM60_VS_PIN     6
-#define INTERNAL_LM60_VOUT_PIN   0
-#define EXTERNAL_LM60_VS_PIN     7
-#define EXTERNAL_LM60_VOUT_PIN   1
+#define PTT_PIN           5
 
 // Units for temperature sensors (Added by: Kyle Crockett)
 // 1 = Celsius, 2 = Kelvin, 3 = Fahrenheit
 #define TEMP_UNIT 1
-
-// Calibration value in the units selected. Use integer only.
-#define CALIBRATION_VAL 0
-
-// Resistors divider for the voltage meter (ohms)
-#define VMETER_R1       10000
-#define VMETER_R2       3300
-
-// Voltage meter analog pin
-#define VMETER_PIN      2
 
 // --------------------------------------------------------------------------
 // Buzzer config (buzzer.cpp)
@@ -220,7 +178,6 @@
 // #define DEBUG_AFSK   // AFSK (modulation) output
 // #define DEBUG_RESET  // AVR reset
 // #define DEBUG_SENS   // Sensors
-
-
+// #define DEBUG_MAIN   // Avionics.ino
+// #define DEBUG_SENSORS // Debug reading of sensor data
 #endif
-

@@ -1,7 +1,7 @@
 #include "calculate_altitude.h"
 
 #ifdef __x86_64
-#define DEBUG
+// #define DEBUG_ALT
 #endif
 
 
@@ -32,7 +32,7 @@ Returns the calculated geopotential altitude (as it assumes g is constant) using
 Valid up to 278000 ft (86km).
 */
 
-double calc_geopotential_alt (uint32_t P_alt, double T_alt) {
+double calc_geopotential_alt (uint32_t P_alt) {
 	double geopotential_alt;
 
 	for(int possible_layer = 6; possible_layer > 0; possible_layer--){
@@ -45,17 +45,16 @@ double calc_geopotential_alt (uint32_t P_alt, double T_alt) {
 		}
 	}
 
-#ifdef DEBUG
+#ifdef DEBUG_ALT
 
 	printf("calc_geopotential_alt called with the following values.\n\
-T_alt = %lf\n\
 P_alt = %u\n\
 b = %d\n\
 T_b = %lf\n\
 P_b = %lf\n\
 Alt_b = %lf\n\
 L_b = %lf\n", 
-T_alt, P_alt, (int) b, T_b, P_b, Alt_b, L_b);
+P_alt, (int) b, T_b, P_b, Alt_b, L_b);
 
 #endif
 
@@ -65,7 +64,7 @@ T_alt, P_alt, (int) b, T_b, P_b, Alt_b, L_b);
 		geopotential_alt = T_b / L_b * (pow(P_b/P_alt, (double) R * L_b / G / M) - 1 ) + Alt_b;
 	}
 
-#ifdef DEBUG
+#ifdef DEBUG_ALT
 	printf("Returns geopotential alt: %lfm\n", geopotential_alt);
 #endif
 	return geopotential_alt;
