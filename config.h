@@ -178,6 +178,6 @@
 // #define DEBUG_AFSK   // AFSK (modulation) output
 // #define DEBUG_RESET  // AVR reset
 // #define DEBUG_SENS   // Sensors
-// #define DEBUG_MAIN   // Avionics.ino
-// #define DEBUG_SENSORS // Debug reading of sensor data
+ #define DEBUG_MAIN   // Avionics.ino
+ #define DEBUG_SENSORS // Debug reading of sensor data
 #endif
