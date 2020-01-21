@@ -14,19 +14,33 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
   
-  Connections for MS5607 and BNO055 
+  Connections for MS5607 and BNO055 (Uno)
   ==================================
   Connect SCL to analog 5
   Connect SDA to analog 4
   Connect VDD to 3.3-5V DC
   Connect GROUND to common ground
 
-  Connections for SD card reader
+  Connections for SD card reader (Uno)
   ===============================
   Connect SCK to Pin 13
   Connect MISO to Pin 12
   Connect MOSI to Pin 11
   Connect SS to Pin 4
+
+  Connections for MS5607 and BNO055 (Mega)
+  ==================================
+  Connect SCL to analog 21
+  Connect SDA to analog 20
+  Connect VDD to 3.3-5V DC
+  Connect GROUND to common ground
+
+  Connections for SD card reader (Mega)
+  ===============================
+  Connect SCK to Pin 52
+  Connect MISO to Pin 50
+  Connect MOSI to Pin 51
+  Connect SS to Pin 53
    
  */
 
@@ -44,15 +58,15 @@
 
 unsigned long lastLogTime;
 unsigned long lastTelemtryTime;
-char str_for_log_and_telemetry[100];
+String str_for_log_and_telemetry;
 
 struct bno055_data bno055_data_struct;
 struct ms5607_data ms5607_data_struct;
 // TODO: Include a data structure for GPS time and coordinates
 
 // TODO: Any error checking needed?
-extern int write_to_file(const char *filename_to_write_to, const char *str_to_write){
-    File file_to_write_to = SD.open(filename_to_write_to);
+inline int write_to_file(const char *filename_to_write_to, const char *str_to_write){
+    File file_to_write_to = SD.open(filename_to_write_to, FILE_WRITE);
     if (!file_to_write_to){
 #ifdef DEBUG_MAIN
       Serial.print("Failed to open file: ");
@@ -65,10 +79,12 @@ extern int write_to_file(const char *filename_to_write_to, const char *str_to_wr
     return 0;
 }
 
-extern int initialize_sdcard(void){
-  if (!SD.begin(2)) {
+inline int initialize_sdcard(void){
+  pinMode(53, OUTPUT);
+  //digitalWrite(53, HIGH);
+  if(!SD.begin()){
 #ifdef DEBUG_MAIN
-    Serial.println("initialization of SD card failed!");
+    Serial.println("Failed to initialize SD card.");
 #endif
     return -1;
   }
@@ -85,7 +101,6 @@ void setup() {
 #endif
   while(initialize_sdcard() == -1){
     // Problem with initializing SD card
-
   }
 #ifdef DEBUG_MAIN
   Serial.println("Finished setting up SD card.");
@@ -110,25 +125,42 @@ void loop() {
   // put your main code here, to run repeatedly: 
   if((unsigned long)(millis() - lastLogTime) > SAMPLERATE_DELAY_MS){
 #ifdef DEBUG_MAIN
-    Serial.println("Logging data.");
+  Serial.println("Logging data.");
 #endif
-    readFrom_ms5607(&ms5607_data_struct);
-    readFrom_bno055(&bno055_data_struct);
-    // TODO: Get GPS time and coordinates from the LoPy
-    // TODO: Process data into a string
-    sprintf(str_for_log_and_telemetry, "%f,%f,%f,%d,%f,%f,%f", 
-      bno055_data_struct.orientation_x,
-      bno055_data_struct.orientation_y,
-      bno055_data_struct.orientation_z,
-      bno055_data_struct.internal_temp,
-      ms5607_data_struct.temperature,
-      ms5607_data_struct.pressure,
-      ms5607_data_struct.altitude
-    );
+  readFrom_ms5607(&ms5607_data_struct);
+  readFrom_bno055(&bno055_data_struct);
+  // TODO: Get GPS time and coordinates from the LoPy
+  // TODO: Process data into a string
+/*
+  sprintf(str_for_log_and_telemetry, "%d,%d,%d,%d,%d,%d,%d", 
+    (int32_t) bno055_data_struct.orientation_x,
+    (int32_t) bno055_data_struct.orientation_y,
+    (int32_t) bno055_data_struct.orientation_z,
+    (int32_t) bno055_data_struct.internal_temp,
+    (int32_t) ms5607_data_struct.temperature,
+    (int32_t) ms5607_data_struct.pressure,
+    (int32_t) ms5607_data_struct.altitude
+  );
+*/
+  str_for_log_and_telemetry = bno055_data_struct.orientation_x;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += bno055_data_struct.orientation_y;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += bno055_data_struct.orientation_z;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += bno055_data_struct.internal_temp;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += ms5607_data_struct.temperature;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += ms5607_data_struct.pressure;
+  str_for_log_and_telemetry += ",";
+  str_for_log_and_telemetry += ms5607_data_struct.altitude;
+  str_for_log_and_telemetry += ",";
+  
 #ifdef DEBUG_MAIN
     Serial.println(str_for_log_and_telemetry);
 #endif
-    write_to_file("log_file.txt", str_for_log_and_telemetry);
+    write_to_file("logfile.txt", str_for_log_and_telemetry.c_str());
     lastLogTime = millis();
   }
   if((unsigned long)(millis() - lastTelemtryTime) > TELEMETRY_DELAY_MS){
